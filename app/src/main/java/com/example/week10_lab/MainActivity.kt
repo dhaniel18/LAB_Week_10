@@ -1,0 +1,99 @@
+package com.example.week10_lab
+
+import android.os.Bundle
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import androidx.room.Room
+import com.example.week10_lab.database
+import com.example.week10_lab.database
+import com.lab_week_10.lab_week_10.database.TotalObject
+import com.example.week10_lab.viewmodels
+import java.util.Date
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var db: TotalDatabase
+    private lateinit var viewModel: TotalViewModel
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        db = prepareDatabase()
+        viewModel = ViewModelProvider(this)[TotalViewModel::class.java]
+
+        initializeValueFromDatabase()
+        prepareViewModel()
+    }
+
+    private fun updateText(total: Int) {
+        findViewById<TextView>(R.id.text_total).text =
+            getString(R.string.text_total, total)
+    }
+
+    private fun prepareViewModel() {
+        viewModel.total.observe(this) { updateText(it) }
+
+        findViewById<Button>(R.id.button_increment).setOnClickListener {
+            viewModel.incrementTotal()
+        }
+    }
+
+    private fun prepareDatabase(): TotalDatabase {
+        return Room.databaseBuilder(
+            applicationContext,
+            TotalDatabase::class.java,
+            "total-database"
+        )
+            .allowMainThreadQueries()
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+
+    private fun initializeValueFromDatabase() {
+        val totalList = db.totalDao().getTotal(ID)
+        if (totalList.isEmpty()) {
+            db.totalDao().insert(
+                Total(
+                    id = ID,
+                    total = TotalObject(
+                        value = 0,
+                        date = Date().toString()
+                    )
+                )
+            )
+        } else {
+            val total = totalList.first()
+            viewModel.setTotal(total.total.value)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        db.totalDao().update(
+            Total(
+                ID,
+                TotalObject(
+                    value = viewModel.total.value ?: 0,
+                    date = Date().toString()
+                )
+            )
+        )
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val totalList = db.totalDao().getTotal(ID)
+        if (totalList.isNotEmpty()) {
+            val lastDate = totalList.first().total.date
+            Toast.makeText(this, "Last updated: $lastDate", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    companion object {
+        const val ID: Long = 1
+    }
+}
